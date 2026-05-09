@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OOZE WATCH — staccana validator monitor</title>
+<meta name="description" content="Live monitor for the Ooze validator on the staccana network. Subsidy, uptime, and votes pulled directly from the validator-subsidy program on-chain.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=VT323&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="scanlines" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
+
+<header class="topbar">
+  <a href="https://ooze.run" class="logo">OOZE</a>
+  <nav>
+    <a href="https://ooze.run">FORENSICS</a>
+    <a href="https://dashboard.ooze.run">DASHBOARD</a>
+    <a href="https://lab.ooze.run">LABS</a>
+    <a href="/" class="active">WATCH</a>
+    <a href="https://github.com/SwagasaurusFLEX" target="_blank" rel="noopener">GITHUB</a>
+    <a href="https://twitter.com/0ooozzzzeeee" target="_blank" rel="noopener">X</a>
+  </nav>
+</header>
+
+<main>
+
+  <section class="hero">
+    <div class="hero-pre">// staccana validator monitor &middot; live</div>
+    <h1 class="title">
+      <span class="bracket">[</span>OOZE&nbsp;WATCH<span class="bracket">]</span>
+      <span class="cursor">_</span>
+    </h1>
+    <p class="tag">Live readout of the staccana <code>validator-subsidy</code> program.<br>
+       Uptime, delegated stake, votes, and lifetime payouts — pulled directly from on-chain state.</p>
+  </section>
+
+  <section class="status-strip" id="status-strip">
+    <div class="strip-stat">
+      <div class="strip-label">REGISTERED</div>
+      <div class="strip-value" id="strip-count">—</div>
+    </div>
+    <div class="strip-stat">
+      <div class="strip-label">SLOT</div>
+      <div class="strip-value" id="strip-slot">—</div>
+    </div>
+    <div class="strip-stat">
+      <div class="strip-label">EPOCH</div>
+      <div class="strip-value" id="strip-epoch">—</div>
+    </div>
+    <div class="strip-stat">
+      <div class="strip-label">TOTAL SUBSIDY PAID</div>
+      <div class="strip-value" id="strip-total">—</div>
+    </div>
+    <div class="strip-stat status-pill">
+      <div class="dot" id="status-dot"></div>
+      <span id="status-text">connecting</span>
+    </div>
+  </section>
+
+  <section class="ours-wrap" id="ours-wrap" hidden>
+    <div class="section-label">// our validator</div>
+    <article class="validator-card ours" id="ours-card">
+      <!-- filled by JS -->
+    </article>
+  </section>
+
+  <section class="others-wrap" id="others-wrap">
+    <div class="section-label">// network</div>
+    <div class="validators-grid" id="validators-grid">
+      <!-- filled by JS -->
+    </div>
+  </section>
+
+  <section class="readme">
+    <h3>// what this is</h3>
+    <p>
+      Every validator on staccana is registered with the on-chain
+      <code>validator-subsidy</code> program. The federation pushes uptime,
+      delegated stake, and vote-count metrics every epoch. The program
+      reads those metrics, computes a pro-rata weight, and pays validators
+      out of the genesis treasury.
+    </p>
+    <p>
+      This page reads the program's state directly — <code>ValidatorRegistry</code>
+      gives the list of registered identities, then one <code>ValidatorRecord</code>
+      PDA per validator carries the metrics. No middleman.
+    </p>
+    <p class="dim">
+      Refreshes every 15 seconds. RPC source: <code id="rpc-foot">…</code>.
+      Program: <code>Subsidy1111…11</code>.
+    </p>
+  </section>
+
+</main>
+
+<footer class="page-footer">
+  <span>OOZE.RUN © 2026</span>
+  <span class="sep">·</span>
+  <a href="https://twitter.com/0ooozzzzeeee" target="_blank" rel="noopener">@0ooozzzzeeee</a>
+</footer>
+
+<!-- card template -->
+<template id="card-tpl">
+  <article class="validator-card">
+    <div class="card-head">
+      <div class="card-id">
+        <span class="card-label">IDENTITY</span>
+        <code class="card-pubkey"></code>
+      </div>
+      <div class="card-tag-wrap">
+        <span class="card-tag dim">VALIDATOR</span>
+      </div>
+    </div>
+
+    <div class="card-stats">
+      <div class="card-stat">
+        <div class="stat-label">UPTIME</div>
+        <div class="stat-value uptime"></div>
+        <div class="stat-sub uptime-bps"></div>
+      </div>
+      <div class="card-stat">
+        <div class="stat-label">DELEGATED STAKE</div>
+        <div class="stat-value stake"></div>
+        <div class="stat-sub stake-lamports"></div>
+      </div>
+      <div class="card-stat">
+        <div class="stat-label">VOTES (LAST WINDOW)</div>
+        <div class="stat-value votes"></div>
+        <div class="stat-sub votes-sub">cast</div>
+      </div>
+      <div class="card-stat highlight">
+        <div class="stat-label">LIFETIME SUBSIDY</div>
+        <div class="stat-value subsidy"></div>
+        <div class="stat-sub subsidy-lamports"></div>
+      </div>
+    </div>
+
+    <div class="card-foot">
+      <span class="dim">epoch <span class="last-epoch">—</span></span>
+      <span class="sep">·</span>
+      <span class="dim">slot <span class="last-slot">—</span></span>
+      <span class="sep">·</span>
+      <span class="dim">nonce <span class="last-nonce">—</span></span>
+    </div>
+  </article>
+</template>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
