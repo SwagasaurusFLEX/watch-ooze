@@ -9,15 +9,15 @@ Lives at <https://watch.ooze.run>.
 A FastAPI app that:
 
 - Reads the staccana `validator-subsidy` program's on-chain state via the
-  staccana RPC at `$STACCANA_RPC_URL` (default: `http://77.42.80.65:8899`)
-- Decodes the `ValidatorRegistry` PDA and each registered validator's
-  `ValidatorRecord` PDA — Anchor account discriminators + Borsh layout
+  RPC at `$STACCANA_RPC_URL` (default: `http://77.42.80.65:8899`)
+- Calls `getProgramAccounts` with a `dataSize: 91` filter to get every
+  `ValidatorRecord` PDA in one round-trip
+- Decodes each record's metrics (uptime, stake, votes, lifetime subsidy)
 - Returns aggregated JSON to the frontend at `/api/validators`
 - Frontend renders one card per validator, with the Ooze validator
-  (`AKzHD1xB...`) highlighted
+  highlighted
 
-Read-only. No keys, no signing, no writes. The whole pipeline is RPC
-queries against your own VPS.
+Read-only. No keys, no signing, no writes.
 
 ## Run locally
 
@@ -27,8 +27,6 @@ pip install -r requirements.txt
 uvicorn app:app --reload
 ```
 
-Visit <http://localhost:8000>.
-
 ## Environment variables
 
 | var                       | default                                              |
@@ -37,8 +35,3 @@ Visit <http://localhost:8000>.
 | `SUBSIDY_PROGRAM_ID`      | `Subsidy111111111111111111111111111111111111`        |
 | `OOZE_VALIDATOR_IDENTITY` | `AKzHD1xBJVAiDnvQi4P7Z1RhHmbMv8fX7dcTWrisimiL`       |
 | `PORT`                    | `8000`                                               |
-
-## Deploy on Railway
-
-Auto-deploys from the `main` branch. Set the custom domain
-`watch.ooze.run` after first deploy.

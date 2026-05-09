@@ -3,18 +3,25 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>OOZE WATCH — staccana validator monitor</title>
-<meta name="description" content="Live monitor for the Ooze validator on the staccana network. Subsidy, uptime, and votes pulled directly from the validator-subsidy program on-chain.">
+<title>Watch Ooze</title>
+<meta name="description" content="Live readout of the staccana validator-subsidy program. Uptime, delegated stake, votes, and lifetime payouts pulled directly from on-chain state.">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=VT323&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=VT323&display=swap" rel="stylesheet">
 
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 
+<!-- ambient world map -->
+<div class="map-bg" aria-hidden="true">
+  <object class="map-svg" type="image/svg+xml" data="/static/world-map.svg"></object>
+  <div class="map-scan"></div>
+</div>
+
 <div class="scanlines" aria-hidden="true"></div>
+<div class="vignette" aria-hidden="true"></div>
 <div class="grain" aria-hidden="true"></div>
 
 <header class="topbar">
@@ -23,7 +30,7 @@
     <a href="https://ooze.run">FORENSICS</a>
     <a href="https://dashboard.ooze.run">DASHBOARD</a>
     <a href="https://lab.ooze.run">LABS</a>
-    <a href="/" class="active">WATCH</a>
+    <a href="/" class="active">WATCH OOZE</a>
     <a href="https://github.com/SwagasaurusFLEX" target="_blank" rel="noopener">GITHUB</a>
     <a href="https://twitter.com/0ooozzzzeeee" target="_blank" rel="noopener">X</a>
   </nav>
@@ -31,16 +38,7 @@
 
 <main>
 
-  <section class="hero">
-    <div class="hero-pre">// staccana validator monitor &middot; live</div>
-    <h1 class="title">
-      <span class="bracket">[</span>OOZE&nbsp;WATCH<span class="bracket">]</span>
-      <span class="cursor">_</span>
-    </h1>
-    <p class="tag">Live readout of the staccana <code>validator-subsidy</code> program.<br>
-       Uptime, delegated stake, votes, and lifetime payouts — pulled directly from on-chain state.</p>
-  </section>
-
+  <!-- status strip — first thing on the page, no hero -->
   <section class="status-strip" id="status-strip">
     <div class="strip-stat">
       <div class="strip-label">REGISTERED</div>
@@ -65,43 +63,21 @@
   </section>
 
   <section class="ours-wrap" id="ours-wrap" hidden>
-    <div class="section-label">// our validator</div>
-    <article class="validator-card ours" id="ours-card">
-      <!-- filled by JS -->
-    </article>
+    <div class="section-label">// ooze validator</div>
+    <article class="validator-card ours" id="ours-card"></article>
   </section>
 
   <section class="others-wrap" id="others-wrap">
     <div class="section-label">// network</div>
-    <div class="validators-grid" id="validators-grid">
-      <!-- filled by JS -->
-    </div>
-  </section>
-
-  <section class="readme">
-    <h3>// what this is</h3>
-    <p>
-      Every validator on staccana is registered with the on-chain
-      <code>validator-subsidy</code> program. The federation pushes uptime,
-      delegated stake, and vote-count metrics every epoch. The program
-      reads those metrics, computes a pro-rata weight, and pays validators
-      out of the genesis treasury.
-    </p>
-    <p>
-      This page reads the program's state directly — <code>ValidatorRegistry</code>
-      gives the list of registered identities, then one <code>ValidatorRecord</code>
-      PDA per validator carries the metrics. No middleman.
-    </p>
-    <p class="dim">
-      Refreshes every 15 seconds. RPC source: <code id="rpc-foot">…</code>.
-      Program: <code>Subsidy1111…11</code>.
-    </p>
+    <div class="validators-grid" id="validators-grid"></div>
   </section>
 
 </main>
 
 <footer class="page-footer">
-  <span>OOZE.RUN © 2026</span>
+  <span>OOZE.RUN</span>
+  <span class="sep">·</span>
+  <span id="rpc-foot">staccana</span>
   <span class="sep">·</span>
   <a href="https://twitter.com/0ooozzzzeeee" target="_blank" rel="noopener">@0ooozzzzeeee</a>
 </footer>
@@ -143,11 +119,11 @@
     </div>
 
     <div class="card-foot">
-      <span class="dim">epoch <span class="last-epoch">—</span></span>
+      <span class="dim">EPOCH <span class="last-epoch">—</span></span>
       <span class="sep">·</span>
-      <span class="dim">slot <span class="last-slot">—</span></span>
+      <span class="dim">SLOT <span class="last-slot">—</span></span>
       <span class="sep">·</span>
-      <span class="dim">nonce <span class="last-nonce">—</span></span>
+      <span class="dim">NONCE <span class="last-nonce">—</span></span>
     </div>
   </article>
 </template>

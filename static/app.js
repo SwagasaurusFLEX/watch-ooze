@@ -1,4 +1,4 @@
-/* OOZE WATCH — frontend logic */
+/* WATCH OOZE — frontend logic */
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -21,10 +21,9 @@ function fmtSol(s, opts = {}) {
     if (s >= 1e3) return (s / 1e3).toFixed(1) + 'K ◎';
     return s.toFixed(2) + ' ◎';
   }
-  // long form: full decimals up to 6
   if (s >= 1e6) return (s / 1e6).toFixed(3) + 'M ◎';
   if (s >= 1e3) return s.toFixed(2) + ' ◎';
-  if (s < 0.001) return s.toFixed(9) + ' ◎';
+  if (s < 0.001 && s > 0) return s.toFixed(9) + ' ◎';
   return s.toFixed(6) + ' ◎';
 }
 
@@ -37,6 +36,12 @@ function shortKey(k) {
   if (!k || typeof k !== 'string') return '—';
   if (k.length <= 12) return k;
   return k.slice(0, 4) + '…' + k.slice(-4);
+}
+
+function rpcHostname(url) {
+  if (!url) return 'staccana';
+  try { return new URL(url).host; }
+  catch { return url; }
 }
 
 // ───────── render ─────────
@@ -62,19 +67,22 @@ function renderCard(record, isOurs) {
   card.querySelector('.uptime').textContent = (record.uptimePct ?? 0).toFixed(2) + '%';
   card.querySelector('.uptime-bps').textContent = (record.uptimeBps ?? 0) + ' bps';
 
-  card.querySelector('.stake').textContent = fmtSol(record.delegatedStakeSol, { compact: false });
+  card.querySelector('.stake').textContent = fmtSol(record.delegatedStakeSol);
   card.querySelector('.stake-lamports').textContent = fmtLamports(record.delegatedStakeLamports);
 
   card.querySelector('.votes').textContent = fmtNum(record.votesCast);
 
-  card.querySelector('.subsidy').textContent = fmtSol(record.lifetimeSubsidySol, { compact: false });
+  card.querySelector('.subsidy').textContent = fmtSol(record.lifetimeSubsidySol);
   card.querySelector('.subsidy-lamports').textContent = fmtLamports(record.lifetimeSubsidyLamports);
 
   card.querySelector('.last-epoch').textContent = record.lastDistributionEpoch ?? '—';
-  card.querySelector('.last-slot').textContent = (record.lastMetricsSlot ?? '—').toLocaleString?.() ?? record.lastMetricsSlot ?? '—';
+  card.querySelector('.last-slot').textContent =
+    typeof record.lastMetricsSlot === 'number'
+      ? record.lastMetricsSlot.toLocaleString()
+      : (record.lastMetricsSlot ?? '—');
   card.querySelector('.last-nonce').textContent = record.lastMetricsNonce ?? '—';
 
-  return tpl;
+  return card;
 }
 
 function renderAll(payload) {
@@ -93,7 +101,7 @@ function renderAll(payload) {
   $('#status-dot').classList.remove('err');
   $('#status-text').textContent = 'live';
 
-  $('#rpc-foot').textContent = payload.rpcUrl || '—';
+  $('#rpc-foot').textContent = rpcHostname(payload.rpcUrl);
 
   // ours
   const oursWrap = $('#ours-wrap');
@@ -102,7 +110,10 @@ function renderAll(payload) {
   const ours = records.find((r) => r.validator === ourPubkey);
   if (ours) {
     oursWrap.hidden = false;
-    oursCard.appendChild(renderCard(ours, true).querySelector('.validator-card'));
+    const cardEl = renderCard(ours, true);
+    while (cardEl.firstChild) {
+      oursCard.appendChild(cardEl.firstChild);
+    }
   } else {
     oursWrap.hidden = true;
   }
@@ -117,6 +128,7 @@ function renderAll(payload) {
     empty.style.padding = '20px';
     empty.style.textAlign = 'center';
     empty.style.gridColumn = '1 / -1';
+    empty.style.letterSpacing = '2px';
     empty.textContent = '// no other validators in registry';
     grid.appendChild(empty);
   } else {
