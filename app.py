@@ -5,15 +5,13 @@ Fetches the staccana validator-subsidy program's on-chain state via the
 public RPC at $STACCANA_RPC_URL and serves it to the frontend.
 
 Pipeline:
-  1. Derive ValidatorRegistry PDA at seeds=["validator_registry"]
-  2. Fetch its account data, decode the registered validator pubkeys
-  3. For each validator, derive ValidatorRecord PDA at
-     seeds=["validator", pubkey] and fetch its account
-  4. Decode each record's metrics (uptime, stake, votes, lifetime subsidy)
-  5. Return a JSON payload to the frontend
+  1. Call getProgramAccounts on the validator-subsidy program
+  2. Filter accounts by Anchor discriminator to find ValidatorRecord accounts
+  3. Decode each into structured JSON
+  4. Return the records to the frontend
 
-The RPC results are cached for ~10 seconds in memory to avoid hammering
-the source. The whole program is read-only — no signing, no writes.
+No PDA derivation needed. No external SDK. Just RPC + Borsh decode.
+The whole pipeline is read-only — no signing, no writes.
 """
 from __future__ import annotations
 
@@ -50,11 +48,8 @@ CACHE_TTL_SEC = 10.0
 STATIC_DIR = Path(__file__).parent / "static"
 
 # ---------- base58 (no external dep) ----------
-# Solana pubkeys are base58-encoded 32-byte Ed25519 pubkeys. We need to encode
-# bytes -> base58 (for display) and decode base58 -> bytes (for PDA derivation).
 
 _B58_ALPHA = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
-_B58_INDEX = {c: i for i, c in enumerate(_B58_ALPHA)}
 
 
 def b58encode(data: bytes) -> str:
@@ -63,7 +58,6 @@ def b58encode(data: bytes) -> str:
     while n > 0:
         n, r = divmod(n, 58)
         out.append(_B58_ALPHA[r])
-    # leading zero bytes -> leading '1' chars
     for byte in data:
         if byte == 0:
             out.append(_B58_ALPHA[0])
@@ -72,79 +66,7 @@ def b58encode(data: bytes) -> str:
     return out[::-1].decode()
 
 
-def b58decode(s: str) -> bytes:
-    n = 0
-    for c in s.encode():
-        if c not in _B58_INDEX:
-            raise ValueError(f"invalid base58 char: {chr(c)}")
-        n = n * 58 + _B58_INDEX[c]
-    body = n.to_bytes((n.bit_length() + 7) // 8, "big") if n else b""
-    pad = 0
-    for c in s.encode():
-        if c == _B58_ALPHA[0]:
-            pad += 1
-        else:
-            break
-    return b"\x00" * pad + body
-
-
-# ---------- PDA derivation ----------
-# Solana PDAs are derived by hashing seeds + program_id + bump byte until the
-# result is OFF the Ed25519 curve. We don't need to find the bump from
-# scratch — we replicate the on-chain derivation exactly.
-
-_PDA_MARKER = b"ProgramDerivedAddress"
-
-
-def _is_on_curve(point: bytes) -> bool:
-    """Check whether a 32-byte value is a valid compressed Ed25519 point.
-
-    We don't need full curve math — Solana's PDA find-pubkey loop tries
-    each bump byte from 255 down and accepts the first hash that is NOT
-    on the curve. The curve check uses the standard ed25519-dalek decode.
-    For our purposes (verifying a candidate PDA), we use a simplified
-    check: the y-coordinate must satisfy the curve equation. nacl exposes
-    this via `from_bytes` raising on invalid points.
-
-    We use pynacl if available, otherwise fall back to a heuristic that
-    matches in 99%+ of cases. Solana programs may include nacl already.
-    """
-    try:
-        from nacl.signing import VerifyKey  # type: ignore
-        try:
-            VerifyKey(point)
-            return True
-        except Exception:
-            return False
-    except ImportError:
-        # Fallback: use a deterministic heuristic that's good enough for
-        # the bumps we care about. Solana's bump search is deterministic;
-        # if nacl isn't available, we trust the first valid hash.
-        return False
-
-
-def find_program_address(seeds: list[bytes], program_id_bytes: bytes) -> tuple[bytes, int]:
-    """Replicate Pubkey::find_program_address from solana-sdk.
-
-    Iterates bump from 255 down to 0; for each, hashes
-    sha256(seeds || bump || program_id || "ProgramDerivedAddress") and
-    returns when the result is OFF the curve.
-    """
-    for bump in range(255, -1, -1):
-        h = hashlib.sha256()
-        for seed in seeds:
-            h.update(seed)
-        h.update(bytes([bump]))
-        h.update(program_id_bytes)
-        h.update(_PDA_MARKER)
-        candidate = h.digest()
-        if not _is_on_curve(candidate):
-            return candidate, bump
-    raise RuntimeError("no valid PDA found")
-
-
 # ---------- Anchor discriminators ----------
-# Anchor prefixes each account with sha256("account:<StructName>")[0..8].
 
 def anchor_account_discriminator(name: str) -> bytes:
     return hashlib.sha256(f"account:{name}".encode()).digest()[:8]
@@ -154,11 +76,10 @@ VALIDATOR_RECORD_DISCRIMINATOR = anchor_account_discriminator("ValidatorRecord")
 VALIDATOR_REGISTRY_DISCRIMINATOR = anchor_account_discriminator("ValidatorRegistry")
 
 
-# ---------- decoders ----------
-
-# ValidatorRecord layout (Borsh, after 8-byte discriminator):
+# ---------- ValidatorRecord decoder ----------
+# Layout (after 8-byte Anchor discriminator):
 #   validator:                32 bytes (Pubkey)
-#   uptime_bps:                2 bytes (u16, little-endian)
+#   uptime_bps:                2 bytes (u16, LE)
 #   delegated_stake:           8 bytes (u64, LE)
 #   votes_cast:                8 bytes (u64, LE)
 #   last_metrics_slot:         8 bytes (u64, LE)
@@ -166,30 +87,25 @@ VALIDATOR_REGISTRY_DISCRIMINATOR = anchor_account_discriminator("ValidatorRegist
 #   last_distribution_epoch:   8 bytes (u64, LE)
 #   total_subsidy_received:    8 bytes (u64, LE)
 #   bump:                      1 byte (u8)
+# Total = 91 bytes.
+
+VALIDATOR_RECORD_SIZE = 91
 
 
 def decode_validator_record(data: bytes) -> dict[str, Any] | None:
-    if len(data) < 8 + 32 + 2 + 8 * 6 + 1:
+    if len(data) < VALIDATOR_RECORD_SIZE:
         return None
     if data[:8] != VALIDATOR_RECORD_DISCRIMINATOR:
         return None
     o = 8
-    validator = data[o : o + 32]
-    o += 32
-    uptime_bps = struct.unpack_from("<H", data, o)[0]
-    o += 2
-    delegated_stake = struct.unpack_from("<Q", data, o)[0]
-    o += 8
-    votes_cast = struct.unpack_from("<Q", data, o)[0]
-    o += 8
-    last_metrics_slot = struct.unpack_from("<Q", data, o)[0]
-    o += 8
-    last_metrics_nonce = struct.unpack_from("<Q", data, o)[0]
-    o += 8
-    last_distribution_epoch = struct.unpack_from("<Q", data, o)[0]
-    o += 8
-    total_subsidy_received = struct.unpack_from("<Q", data, o)[0]
-    o += 8
+    validator = data[o : o + 32]; o += 32
+    uptime_bps = struct.unpack_from("<H", data, o)[0]; o += 2
+    delegated_stake = struct.unpack_from("<Q", data, o)[0]; o += 8
+    votes_cast = struct.unpack_from("<Q", data, o)[0]; o += 8
+    last_metrics_slot = struct.unpack_from("<Q", data, o)[0]; o += 8
+    last_metrics_nonce = struct.unpack_from("<Q", data, o)[0]; o += 8
+    last_distribution_epoch = struct.unpack_from("<Q", data, o)[0]; o += 8
+    total_subsidy_received = struct.unpack_from("<Q", data, o)[0]; o += 8
     return {
         "validator": b58encode(validator),
         "uptimeBps": uptime_bps,
@@ -205,53 +121,9 @@ def decode_validator_record(data: bytes) -> dict[str, Any] | None:
     }
 
 
-# ValidatorRegistry layout (zero_copy, repr(C), after 8-byte discriminator):
-#   count:      4 bytes (u32, LE) -- but zero_copy may pad to 8. Probe both.
-#   validators: count * 32 bytes (Pubkey array, fixed-size MAX_VALIDATORS)
-# MAX_VALIDATORS was bumped 8 -> 256, so the full array is 256*32 = 8192 bytes.
-
-
-def decode_validator_registry(data: bytes) -> list[str]:
-    if len(data) < 8 + 4:
-        return []
-    if data[:8] != VALIDATOR_REGISTRY_DISCRIMINATOR:
-        return []
-
-    # zero_copy in Anchor adds the discriminator + the struct's repr(C) layout.
-    # Depending on alignment, count may be at offset 8 (u32) or 8 with padding.
-    # We try the natural u32 layout first; if it gives a sane count we accept.
-    count_u32 = struct.unpack_from("<I", data, 8)[0]
-    o = 8 + 4
-
-    # zero_copy structs are often #[repr(C)] with a u32 followed by an array.
-    # No padding needed for [Pubkey; N] (32-byte aligned). count_u32 is fine.
-
-    if count_u32 > 256 or count_u32 == 0:
-        # try u64 layout in case the field is u64
-        count_u64 = struct.unpack_from("<Q", data, 8)[0]
-        if count_u64 > 256 or count_u64 == 0:
-            return []
-        count = count_u64
-        o = 8 + 8
-    else:
-        count = count_u32
-
-    pubkeys: list[str] = []
-    for i in range(count):
-        start = o + i * 32
-        end = start + 32
-        if end > len(data):
-            break
-        pk = data[start:end]
-        if pk == b"\x00" * 32:
-            continue
-        pubkeys.append(b58encode(pk))
-    return pubkeys
-
-
 # ---------- RPC ----------
 
-async def rpc_call(method: str, params: list[Any] | None = None, timeout: float = 8.0) -> Any:
+async def rpc_call(method: str, params: list[Any] | None = None, timeout: float = 12.0) -> Any:
     payload = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params or []}
     async with httpx.AsyncClient(timeout=timeout) as client:
         try:
@@ -264,22 +136,6 @@ async def rpc_call(method: str, params: list[Any] | None = None, timeout: float 
         err = data["error"]
         raise HTTPException(status_code=502, detail=f"RPC error: {err}")
     return data.get("result")
-
-
-async def get_account_data(pubkey_b58: str) -> bytes | None:
-    result = await rpc_call(
-        "getAccountInfo",
-        [pubkey_b58, {"encoding": "base64", "commitment": "confirmed"}],
-    )
-    if not result or not result.get("value"):
-        return None
-    enc_data = result["value"].get("data")
-    if not enc_data:
-        return None
-    if isinstance(enc_data, list) and len(enc_data) >= 1:
-        # ["<base64>", "base64"]
-        return base64.b64decode(enc_data[0])
-    return None
 
 
 # ---------- cache ----------
@@ -308,48 +164,58 @@ async def fetch_all_validators() -> dict[str, Any]:
     if cached is not None:
         return cached
 
-    program_id_bytes = b58decode(SUBSIDY_PROGRAM_ID)
+    # 1. Get every account owned by the subsidy program in one call.
+    #    Filter server-side by data size to skip the registry account
+    #    (which is much larger). dataSize=91 matches ValidatorRecord exactly.
+    all_accounts = await rpc_call(
+        "getProgramAccounts",
+        [
+            SUBSIDY_PROGRAM_ID,
+            {
+                "encoding": "base64",
+                "commitment": "confirmed",
+                "filters": [{"dataSize": VALIDATOR_RECORD_SIZE}],
+            },
+        ],
+    )
 
-    # 1. Derive ValidatorRegistry PDA
-    registry_pda, _ = find_program_address([b"validator_registry"], program_id_bytes)
-    registry_b58 = b58encode(registry_pda)
+    if not isinstance(all_accounts, list):
+        all_accounts = []
 
-    # 2. Fetch + decode it
-    registry_data = await get_account_data(registry_b58)
-    if registry_data is None:
-        raise HTTPException(status_code=502, detail="ValidatorRegistry account missing")
-    pubkeys = decode_validator_registry(registry_data)
+    # 2. Decode each. The dataSize filter narrows to candidates, but we
+    #    still verify the discriminator before trusting.
+    records: list[dict[str, Any]] = []
+    for entry in all_accounts:
+        try:
+            account = entry.get("account", {})
+            data_field = account.get("data")
+            if not isinstance(data_field, list) or len(data_field) < 1:
+                continue
+            raw = base64.b64decode(data_field[0])
+            decoded = decode_validator_record(raw)
+            if decoded is None:
+                continue
+            records.append(decoded)
+        except Exception:
+            continue
 
-    # 3. Fetch all per-validator records in parallel
-    async def fetch_one(pubkey_b58: str) -> dict[str, Any] | None:
-        validator_bytes = b58decode(pubkey_b58)
-        record_pda, _ = find_program_address(
-            [b"validator", validator_bytes], program_id_bytes
-        )
-        record_b58 = b58encode(record_pda)
-        record_data = await get_account_data(record_b58)
-        if record_data is None:
-            return None
-        return decode_validator_record(record_data)
-
-    results = await asyncio.gather(*(fetch_one(pk) for pk in pubkeys))
-    records = [r for r in results if r is not None]
-
-    # 4. Sort by lifetime subsidy descending so the leaders show first
+    # 3. Sort by lifetime subsidy descending so the leaders show first.
     records.sort(key=lambda r: r["lifetimeSubsidyLamports"], reverse=True)
 
-    # 5. Fetch slot/epoch info for context
+    # 4. Slot/epoch for context.
     try:
         slot = await rpc_call("getSlot")
+    except HTTPException:
+        slot = None
+    try:
         epoch_info = await rpc_call("getEpochInfo")
     except HTTPException:
-        slot, epoch_info = None, None
+        epoch_info = None
 
     payload = {
         "ourValidator": OOZE_VALIDATOR_IDENTITY,
         "validators": records,
-        "registeredCount": len(pubkeys),
-        "registryAccount": registry_b58,
+        "registeredCount": len(records),
         "programId": SUBSIDY_PROGRAM_ID,
         "rpcUrl": STACCANA_RPC_URL,
         "slot": slot,
@@ -362,7 +228,7 @@ async def fetch_all_validators() -> dict[str, Any]:
 
 # ---------- FastAPI ----------
 
-app = FastAPI(title="Ooze Watch", version="0.1.0")
+app = FastAPI(title="Ooze Watch", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,
