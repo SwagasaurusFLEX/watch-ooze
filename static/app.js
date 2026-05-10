@@ -118,6 +118,7 @@ function renderAll(payload) {
   label.textContent = 'SYNC';
 
   $('#rpc-foot').textContent = rpcHostname(payload.rpcUrl);
+  $('#net-foot').textContent = payload.network || 'staccana';
 
   const ours = records.find((r) => r.validator === ourPubkey);
   const others = records.filter((r) => r.validator !== ourPubkey);

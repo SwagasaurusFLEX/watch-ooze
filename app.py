@@ -41,13 +41,14 @@ OOZE_VALIDATOR_IDENTITY = os.getenv(
     "OOZE_VALIDATOR_IDENTITY",
     "AKzHD1xBJVAiDnvQi4P7Z1RhHmbMv8fX7dcTWrisimiL",
 )
+NETWORK_NAME = os.getenv("NETWORK_NAME", "staccana")
 
 LAMPORTS_PER_SOL = 1_000_000_000
 CACHE_TTL_SEC = 10.0
 
 STATIC_DIR = Path(__file__).parent / "static"
 
-# ---------- base58 (no external dep) ----------
+# ---------- base58 ----------
 
 _B58_ALPHA = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
@@ -73,21 +74,6 @@ def anchor_account_discriminator(name: str) -> bytes:
 
 
 VALIDATOR_RECORD_DISCRIMINATOR = anchor_account_discriminator("ValidatorRecord")
-VALIDATOR_REGISTRY_DISCRIMINATOR = anchor_account_discriminator("ValidatorRegistry")
-
-
-# ---------- ValidatorRecord decoder ----------
-# Layout (after 8-byte Anchor discriminator):
-#   validator:                32 bytes (Pubkey)
-#   uptime_bps:                2 bytes (u16, LE)
-#   delegated_stake:           8 bytes (u64, LE)
-#   votes_cast:                8 bytes (u64, LE)
-#   last_metrics_slot:         8 bytes (u64, LE)
-#   last_metrics_nonce:        8 bytes (u64, LE)
-#   last_distribution_epoch:   8 bytes (u64, LE)
-#   total_subsidy_received:    8 bytes (u64, LE)
-#   bump:                      1 byte (u8)
-# Total = 91 bytes.
 
 VALIDATOR_RECORD_SIZE = 91
 
@@ -164,9 +150,6 @@ async def fetch_all_validators() -> dict[str, Any]:
     if cached is not None:
         return cached
 
-    # 1. Get every account owned by the subsidy program in one call.
-    #    Filter server-side by data size to skip the registry account
-    #    (which is much larger). dataSize=91 matches ValidatorRecord exactly.
     all_accounts = await rpc_call(
         "getProgramAccounts",
         [
@@ -182,8 +165,6 @@ async def fetch_all_validators() -> dict[str, Any]:
     if not isinstance(all_accounts, list):
         all_accounts = []
 
-    # 2. Decode each. The dataSize filter narrows to candidates, but we
-    #    still verify the discriminator before trusting.
     records: list[dict[str, Any]] = []
     for entry in all_accounts:
         try:
@@ -199,10 +180,8 @@ async def fetch_all_validators() -> dict[str, Any]:
         except Exception:
             continue
 
-    # 3. Sort by lifetime subsidy descending so the leaders show first.
     records.sort(key=lambda r: r["lifetimeSubsidyLamports"], reverse=True)
 
-    # 4. Slot/epoch for context.
     try:
         slot = await rpc_call("getSlot")
     except HTTPException:
@@ -218,6 +197,7 @@ async def fetch_all_validators() -> dict[str, Any]:
         "registeredCount": len(records),
         "programId": SUBSIDY_PROGRAM_ID,
         "rpcUrl": STACCANA_RPC_URL,
+        "network": NETWORK_NAME,
         "slot": slot,
         "epoch": (epoch_info or {}).get("epoch") if isinstance(epoch_info, dict) else None,
         "fetchedAt": int(time.time()),
@@ -228,7 +208,7 @@ async def fetch_all_validators() -> dict[str, Any]:
 
 # ---------- FastAPI ----------
 
-app = FastAPI(title="Ooze Watch", version="0.2.0")
+app = FastAPI(title="Ooze Watch", version="0.4.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -241,7 +221,12 @@ app.add_middleware(
 
 @app.get("/api/health")
 async def health() -> dict[str, Any]:
-    return {"ok": True, "rpc": STACCANA_RPC_URL, "program": SUBSIDY_PROGRAM_ID}
+    return {
+        "ok": True,
+        "rpc": STACCANA_RPC_URL,
+        "program": SUBSIDY_PROGRAM_ID,
+        "network": NETWORK_NAME,
+    }
 
 
 @app.get("/api/validators")
