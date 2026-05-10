@@ -16,7 +16,7 @@
 
 <!-- ambient world map -->
 <div class="map-bg" aria-hidden="true">
-  <object class="map-svg" type="image/svg+xml" data="/static/world-map.svg"></object>
+  <img class="map-svg" src="/static/world-map.svg" alt="">
   <div class="map-scan"></div>
 </div>
 
@@ -38,7 +38,7 @@
 
 <main>
 
-  <!-- status strip — first thing on the page, no hero -->
+  <!-- status strip -->
   <section class="status-strip" id="status-strip">
     <div class="strip-stat">
       <div class="strip-label">REGISTERED</div>
@@ -56,20 +56,51 @@
       <div class="strip-label">TOTAL SUBSIDY PAID</div>
       <div class="strip-value" id="strip-total">—</div>
     </div>
-    <div class="strip-stat status-pill">
-      <div class="dot" id="status-dot"></div>
-      <span id="status-text">connecting</span>
+  </section>
+
+  <!-- single panel with all validators in a table -->
+  <section class="panel" id="panel">
+
+    <header class="panel-head">
+      <div class="panel-title">
+        <span class="sync-light" id="sync-light"></span>
+        <span class="sync-label" id="sync-label">SYNC</span>
+        <span class="panel-divider">::</span>
+        <span class="panel-name">VALIDATOR REGISTRY</span>
+      </div>
+      <div class="panel-meta">
+        <span class="meta-item"><span class="dim">PROGRAM</span> Subsidy11…1111</span>
+        <span class="meta-sep">·</span>
+        <span class="meta-item"><span class="dim">RPC</span> <span id="rpc-foot">staccana</span></span>
+      </div>
+    </header>
+
+    <div class="panel-table-wrap">
+      <table class="panel-table">
+        <thead>
+          <tr>
+            <th class="col-validator">VALIDATOR</th>
+            <th class="col-uptime">UPTIME</th>
+            <th class="col-stake">DELEGATED STAKE</th>
+            <th class="col-votes">VOTES</th>
+            <th class="col-subsidy">LIFETIME SUBSIDY</th>
+            <th class="col-epoch">EPOCH</th>
+            <th class="col-nonce">NONCE</th>
+          </tr>
+        </thead>
+        <tbody id="rows">
+          <tr class="empty-row"><td colspan="7">// loading registry...</td></tr>
+        </tbody>
+      </table>
     </div>
-  </section>
 
-  <section class="ours-wrap" id="ours-wrap" hidden>
-    <div class="section-label">// ooze validator</div>
-    <article class="validator-card ours" id="ours-card"></article>
-  </section>
+    <div class="panel-corners" aria-hidden="true">
+      <span class="corner corner-tl"></span>
+      <span class="corner corner-tr"></span>
+      <span class="corner corner-bl"></span>
+      <span class="corner corner-br"></span>
+    </div>
 
-  <section class="others-wrap" id="others-wrap">
-    <div class="section-label">// network</div>
-    <div class="validators-grid" id="validators-grid"></div>
   </section>
 
 </main>
@@ -77,56 +108,8 @@
 <footer class="page-footer">
   <span>OOZE.RUN</span>
   <span class="sep">·</span>
-  <span id="rpc-foot">staccana</span>
-  <span class="sep">·</span>
   <a href="https://twitter.com/0ooozzzzeeee" target="_blank" rel="noopener">@0ooozzzzeeee</a>
 </footer>
-
-<!-- card template -->
-<template id="card-tpl">
-  <article class="validator-card">
-    <div class="card-head">
-      <div class="card-id">
-        <span class="card-label">IDENTITY</span>
-        <code class="card-pubkey"></code>
-      </div>
-      <div class="card-tag-wrap">
-        <span class="card-tag dim">VALIDATOR</span>
-      </div>
-    </div>
-
-    <div class="card-stats">
-      <div class="card-stat">
-        <div class="stat-label">UPTIME</div>
-        <div class="stat-value uptime"></div>
-        <div class="stat-sub uptime-bps"></div>
-      </div>
-      <div class="card-stat">
-        <div class="stat-label">DELEGATED STAKE</div>
-        <div class="stat-value stake"></div>
-        <div class="stat-sub stake-lamports"></div>
-      </div>
-      <div class="card-stat">
-        <div class="stat-label">VOTES (LAST WINDOW)</div>
-        <div class="stat-value votes"></div>
-        <div class="stat-sub votes-sub">cast</div>
-      </div>
-      <div class="card-stat highlight">
-        <div class="stat-label">LIFETIME SUBSIDY</div>
-        <div class="stat-value subsidy"></div>
-        <div class="stat-sub subsidy-lamports"></div>
-      </div>
-    </div>
-
-    <div class="card-foot">
-      <span class="dim">EPOCH <span class="last-epoch">—</span></span>
-      <span class="sep">·</span>
-      <span class="dim">SLOT <span class="last-slot">—</span></span>
-      <span class="sep">·</span>
-      <span class="dim">NONCE <span class="last-nonce">—</span></span>
-    </div>
-  </article>
-</template>
 
 <script src="/static/app.js"></script>
 </body>

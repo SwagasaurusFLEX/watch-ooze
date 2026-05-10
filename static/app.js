@@ -17,25 +17,25 @@ function fmtSol(s, opts = {}) {
   if (s === null || s === undefined) return '—';
   const compact = opts.compact ?? false;
   if (compact) {
-    if (s >= 1e6) return (s / 1e6).toFixed(2) + 'M ◎';
-    if (s >= 1e3) return (s / 1e3).toFixed(1) + 'K ◎';
-    return s.toFixed(2) + ' ◎';
+    if (s >= 1e6) return (s / 1e6).toFixed(2) + 'M';
+    if (s >= 1e3) return (s / 1e3).toFixed(1) + 'K';
+    return s.toFixed(2);
   }
-  if (s >= 1e6) return (s / 1e6).toFixed(3) + 'M ◎';
-  if (s >= 1e3) return s.toFixed(2) + ' ◎';
-  if (s < 0.001 && s > 0) return s.toFixed(9) + ' ◎';
-  return s.toFixed(6) + ' ◎';
+  if (s >= 1e6) return (s / 1e6).toFixed(3) + 'M';
+  if (s >= 1e3) return s.toFixed(2);
+  if (s < 0.001 && s > 0) return s.toFixed(9);
+  return s.toFixed(4);
 }
 
 function fmtLamports(n) {
   if (n === null || n === undefined) return '—';
-  return n.toLocaleString() + ' lamports';
+  return n.toLocaleString();
 }
 
 function shortKey(k) {
   if (!k || typeof k !== 'string') return '—';
-  if (k.length <= 12) return k;
-  return k.slice(0, 4) + '…' + k.slice(-4);
+  if (k.length <= 14) return k;
+  return k.slice(0, 6) + '…' + k.slice(-6);
 }
 
 function rpcHostname(url) {
@@ -44,45 +44,58 @@ function rpcHostname(url) {
   catch { return url; }
 }
 
-// ───────── render ─────────
+// ───────── render rows ─────────
 
-function renderCard(record, isOurs) {
-  const tpl = $('#card-tpl').content.cloneNode(true);
-  const card = tpl.querySelector('.validator-card');
-  if (isOurs) card.classList.add('ours');
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
 
-  card.querySelector('.card-pubkey').textContent = isOurs
-    ? record.validator
-    : shortKey(record.validator);
+function renderRow(record, isOurs) {
+  const tr = document.createElement('tr');
+  tr.className = isOurs ? 'row-ours' : 'row-other';
 
-  const tag = card.querySelector('.card-tag');
-  if (isOurs) {
-    tag.textContent = 'OOZE';
-    tag.classList.add('ours-tag');
-    tag.classList.remove('dim');
-  } else {
-    tag.textContent = 'VALIDATOR';
-  }
+  const pubkey = isOurs ? record.validator : shortKey(record.validator);
+  const tagHtml = isOurs
+    ? '<span class="tag tag-ours">OOZE\u2019S</span>'
+    : '<span class="tag">VALIDATOR</span>';
 
-  card.querySelector('.uptime').textContent = (record.uptimePct ?? 0).toFixed(2) + '%';
-  card.querySelector('.uptime-bps').textContent = (record.uptimeBps ?? 0) + ' bps';
+  tr.innerHTML = `
+    <td class="col-validator">
+      <div class="cell-validator">
+        ${tagHtml}
+        <code class="cell-pubkey">${escapeHtml(pubkey)}</code>
+      </div>
+    </td>
+    <td class="col-uptime">
+      <div class="cell-num cell-num-strong">${(record.uptimePct ?? 0).toFixed(2)}%</div>
+      <div class="cell-sub">${(record.uptimeBps ?? 0)} bps</div>
+    </td>
+    <td class="col-stake">
+      <div class="cell-num cell-num-strong">${fmtSol(record.delegatedStakeSol)} ◎</div>
+      <div class="cell-sub">${fmtLamports(record.delegatedStakeLamports)}</div>
+    </td>
+    <td class="col-votes">
+      <div class="cell-num cell-num-strong">${fmtNum(record.votesCast)}</div>
+      <div class="cell-sub">cast</div>
+    </td>
+    <td class="col-subsidy">
+      <div class="cell-num cell-num-strong">${fmtSol(record.lifetimeSubsidySol)} ◎</div>
+      <div class="cell-sub">${fmtLamports(record.lifetimeSubsidyLamports)}</div>
+    </td>
+    <td class="col-epoch">
+      <div class="cell-num">${record.lastDistributionEpoch ?? '—'}</div>
+      <div class="cell-sub">last paid</div>
+    </td>
+    <td class="col-nonce">
+      <div class="cell-num">${record.lastMetricsNonce ?? '—'}</div>
+      <div class="cell-sub">slot ${typeof record.lastMetricsSlot === 'number'
+        ? record.lastMetricsSlot.toLocaleString()
+        : '—'}</div>
+    </td>
+  `;
 
-  card.querySelector('.stake').textContent = fmtSol(record.delegatedStakeSol);
-  card.querySelector('.stake-lamports').textContent = fmtLamports(record.delegatedStakeLamports);
-
-  card.querySelector('.votes').textContent = fmtNum(record.votesCast);
-
-  card.querySelector('.subsidy').textContent = fmtSol(record.lifetimeSubsidySol);
-  card.querySelector('.subsidy-lamports').textContent = fmtLamports(record.lifetimeSubsidyLamports);
-
-  card.querySelector('.last-epoch').textContent = record.lastDistributionEpoch ?? '—';
-  card.querySelector('.last-slot').textContent =
-    typeof record.lastMetricsSlot === 'number'
-      ? record.lastMetricsSlot.toLocaleString()
-      : (record.lastMetricsSlot ?? '—');
-  card.querySelector('.last-nonce').textContent = record.lastMetricsNonce ?? '—';
-
-  return card;
+  return tr;
 }
 
 function renderAll(payload) {
@@ -95,46 +108,36 @@ function renderAll(payload) {
   $('#strip-epoch').textContent = fmtNum(payload.epoch);
 
   const totalLamports = records.reduce((s, r) => s + (r.lifetimeSubsidyLamports || 0), 0);
-  $('#strip-total').textContent = fmtSol(totalLamports / 1e9, { compact: true });
+  $('#strip-total').textContent = fmtSol(totalLamports / 1e9, { compact: true }) + ' ◎';
 
-  $('#status-dot').classList.add('live');
-  $('#status-dot').classList.remove('err');
-  $('#status-text').textContent = 'live';
+  // sync indicator
+  const light = $('#sync-light');
+  const label = $('#sync-label');
+  light.classList.remove('err');
+  label.classList.remove('err');
+  label.textContent = 'SYNC';
 
   $('#rpc-foot').textContent = rpcHostname(payload.rpcUrl);
 
-  // ours
-  const oursWrap = $('#ours-wrap');
-  const oursCard = $('#ours-card');
-  oursCard.innerHTML = '';
   const ours = records.find((r) => r.validator === ourPubkey);
-  if (ours) {
-    oursWrap.hidden = false;
-    const cardEl = renderCard(ours, true);
-    while (cardEl.firstChild) {
-      oursCard.appendChild(cardEl.firstChild);
-    }
-  } else {
-    oursWrap.hidden = true;
+  const others = records.filter((r) => r.validator !== ourPubkey);
+
+  const tbody = $('#rows');
+  tbody.innerHTML = '';
+
+  if (records.length === 0) {
+    const tr = document.createElement('tr');
+    tr.className = 'empty-row';
+    tr.innerHTML = '<td colspan="7">// no validators in registry</td>';
+    tbody.appendChild(tr);
+    return;
   }
 
-  // others
-  const grid = $('#validators-grid');
-  grid.innerHTML = '';
-  const others = records.filter((r) => r.validator !== ourPubkey);
-  if (others.length === 0) {
-    const empty = document.createElement('div');
-    empty.className = 'dim';
-    empty.style.padding = '20px';
-    empty.style.textAlign = 'center';
-    empty.style.gridColumn = '1 / -1';
-    empty.style.letterSpacing = '2px';
-    empty.textContent = '// no other validators in registry';
-    grid.appendChild(empty);
-  } else {
-    for (const record of others) {
-      grid.appendChild(renderCard(record, false));
-    }
+  if (ours) {
+    tbody.appendChild(renderRow(ours, true));
+  }
+  for (const record of others) {
+    tbody.appendChild(renderRow(record, false));
   }
 }
 
@@ -152,9 +155,11 @@ async function tick() {
   } catch (e) {
     fails++;
     if (fails > 2) {
-      $('#status-dot').classList.remove('live');
-      $('#status-dot').classList.add('err');
-      $('#status-text').textContent = 'rpc unreachable';
+      const light = $('#sync-light');
+      const label = $('#sync-label');
+      light.classList.add('err');
+      label.classList.add('err');
+      label.textContent = 'NO SIGNAL';
     }
   }
 }
