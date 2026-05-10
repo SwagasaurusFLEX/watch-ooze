@@ -340,22 +340,24 @@ main {
   color: var(--fg);
 }
 
+/* meta strip — bigger and brighter */
 .panel-meta {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 11px;
-  letter-spacing: 1.4px;
+  gap: 14px;
+  font-size: 13px;
+  letter-spacing: 1.6px;
   text-transform: uppercase;
   color: var(--fg);
-  font-weight: 500;
+  font-weight: 600;
 }
 .panel-meta .dim {
-  color: var(--fg-dim);
-  margin-right: 5px;
+  color: var(--phos-soft);
+  margin-right: 6px;
   font-weight: 700;
+  text-shadow: 0 0 4px var(--phos-glow-soft);
 }
-.panel-meta .meta-sep { color: var(--fg-dim); opacity: 0.45; }
+.panel-meta .meta-sep { color: var(--fg-dim); opacity: 0.6; }
 
 /* table */
 .panel-table-wrap {
@@ -372,15 +374,16 @@ main {
 
 .panel-table thead th {
   text-align: left;
-  padding: 12px 14px;
-  font-size: 9.5px;
-  letter-spacing: 2px;
+  padding: 14px 14px;
+  font-size: 11px;
+  letter-spacing: 2.2px;
   text-transform: uppercase;
   font-weight: 700;
-  color: var(--fg-mute);
+  color: var(--fg);
   border-bottom: 1px solid var(--line-strong);
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.55);
   white-space: nowrap;
+  text-shadow: 0 0 4px var(--phos-glow-soft);
 }
 .panel-table thead th.col-stake,
 .panel-table thead th.col-subsidy,
@@ -508,9 +511,10 @@ main {
   main { padding: 24px 16px 60px; }
   .panel-head { padding: 12px 14px; }
   .strip-value { font-size: 24px; }
+  .panel-meta { font-size: 11.5px; gap: 10px; }
 }
 
 @media (max-width: 560px) {
-  .panel-meta { font-size: 9.5px; }
+  .panel-meta { font-size: 11px; }
   .strip-stat { padding: 12px 14px; }
 }
