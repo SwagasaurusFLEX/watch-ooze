@@ -38,12 +38,6 @@ function shortKey(k) {
   return k.slice(0, 6) + '…' + k.slice(-6);
 }
 
-function rpcHostname(url) {
-  if (!url) return 'staccana';
-  try { return new URL(url).host; }
-  catch { return url; }
-}
-
 // ───────── render rows ─────────
 
 function escapeHtml(s) {
@@ -117,8 +111,9 @@ function renderAll(payload) {
   label.classList.remove('err');
   label.textContent = 'SYNC';
 
-  $('#rpc-foot').textContent = rpcHostname(payload.rpcUrl);
-  $('#net-foot').textContent = payload.network || 'staccana';
+  // network name from API
+  const netEl = $('#net-foot');
+  if (netEl) netEl.textContent = payload.network || 'staccana';
 
   const ours = records.find((r) => r.validator === ourPubkey);
   const others = records.filter((r) => r.validator !== ourPubkey);
