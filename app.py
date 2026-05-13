@@ -32,7 +32,7 @@ from fastapi.staticfiles import StaticFiles
 
 # ---------- config ----------
 
-STACCANA_RPC_URL = os.getenv("STACCANA_RPC_URL", "http://77.42.80.65:8899")
+STACCANA_RPC_URL = os.getenv("STACCANA_RPC_URL", "http://77.42.74.189:8899")
 SUBSIDY_PROGRAM_ID = os.getenv(
     "SUBSIDY_PROGRAM_ID",
     "Subsidy111111111111111111111111111111111111",
