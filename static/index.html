@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Watch Ooze</title>
-<meta name="description" content="Live readout of the staccana validator-subsidy program. Uptime, delegated stake, votes, and lifetime payouts pulled directly from on-chain state.">
+<meta name="description" content="Live readout of the Alpenglow community cluster. Validators, stake, votes, and network stats pulled directly from on-chain state.">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,7 +14,6 @@
 </head>
 <body>
 
-<!-- ambient world map -->
 <div class="map-bg" aria-hidden="true">
   <img class="map-svg" src="/static/world-map.svg" alt="">
   <div class="map-scan"></div>
@@ -38,10 +37,9 @@
 
 <main>
 
-  <!-- status strip -->
   <section class="status-strip" id="status-strip">
     <div class="strip-stat">
-      <div class="strip-label">REGISTERED</div>
+      <div class="strip-label">ACTIVE VALIDATORS</div>
       <div class="strip-value" id="strip-count">—</div>
     </div>
     <div class="strip-stat">
@@ -53,7 +51,7 @@
       <div class="strip-value" id="strip-epoch">—</div>
     </div>
     <div class="strip-stat">
-      <div class="strip-label">TOTAL SUBSIDY PAID</div>
+      <div class="strip-label">TOTAL STAKE</div>
       <div class="strip-value" id="strip-total">—</div>
     </div>
     <div class="panel-corners" aria-hidden="true">
@@ -64,7 +62,6 @@
     </div>
   </section>
 
-  <!-- single panel with all validators in a table -->
   <section class="panel" id="panel">
 
     <header class="panel-head">
@@ -72,12 +69,12 @@
         <span class="sync-light" id="sync-light"></span>
         <span class="sync-label" id="sync-label">SYNC</span>
         <span class="panel-divider">::</span>
-        <span class="panel-name">VALIDATOR REGISTRY</span>
+        <span class="panel-name">VALIDATOR SET</span>
       </div>
       <div class="panel-meta">
-        <span class="meta-item"><span class="dim">NETWORK</span> <span id="net-foot">staccana</span></span>
+        <span class="meta-item"><span class="dim">NETWORK</span> <span id="net-foot">ALPENGLOW</span></span>
         <span class="meta-sep">·</span>
-        <span class="meta-item"><span class="dim">PROGRAM</span> Subsidy11…1111</span>
+        <span class="meta-item"><span class="dim">EPOCH</span> <span id="meta-tps">—</span></span>
       </div>
     </header>
 
@@ -85,17 +82,16 @@
       <table class="panel-table">
         <thead>
           <tr>
-            <th class="col-validator">VALIDATOR</th>
-            <th class="col-uptime">UPTIME</th>
-            <th class="col-stake">DELEGATED STAKE</th>
-            <th class="col-votes">VOTES</th>
-            <th class="col-subsidy">LIFETIME SUBSIDY</th>
-            <th class="col-epoch">EPOCH</th>
-            <th class="col-nonce">NONCE</th>
+            <th class="col-validator">IDENTITY</th>
+            <th class="col-vote">VOTE ACCOUNT</th>
+            <th class="col-stake">STAKE</th>
+            <th class="col-votes">LAST VOTE</th>
+            <th class="col-uptime">CREDITS</th>
+            <th class="col-epoch">STATUS</th>
           </tr>
         </thead>
         <tbody id="rows">
-          <tr class="empty-row"><td colspan="7">// loading registry...</td></tr>
+          <tr class="empty-row"><td colspan="6">// loading validator set...</td></tr>
         </tbody>
       </table>
     </div>

@@ -1,4 +1,4 @@
-/* WATCH OOZE — frontend logic */
+/* WATCH OOZE — frontend logic (Alpenglow cluster) */
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -13,23 +13,11 @@ function fmtNum(n) {
   return n.toLocaleString();
 }
 
-function fmtSol(s, opts = {}) {
+function fmtSol(s) {
   if (s === null || s === undefined) return '—';
-  const compact = opts.compact ?? false;
-  if (compact) {
-    if (s >= 1e6) return (s / 1e6).toFixed(2) + 'M';
-    if (s >= 1e3) return (s / 1e3).toFixed(1) + 'K';
-    return s.toFixed(2);
-  }
-  if (s >= 1e6) return (s / 1e6).toFixed(3) + 'M';
-  if (s >= 1e3) return s.toFixed(2);
-  if (s < 0.001 && s > 0) return s.toFixed(9);
-  return s.toFixed(4);
-}
-
-function fmtLamports(n) {
-  if (n === null || n === undefined) return '—';
-  return n.toLocaleString();
+  if (s >= 1e6) return (s / 1e6).toFixed(2) + 'M';
+  if (s >= 1e3) return (s / 1e3).toFixed(1) + 'K';
+  return s.toFixed(2);
 }
 
 function shortKey(k) {
@@ -38,71 +26,65 @@ function shortKey(k) {
   return k.slice(0, 6) + '…' + k.slice(-6);
 }
 
-// ───────── render rows ─────────
-
 function escapeHtml(s) {
   return String(s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function renderRow(record, isOurs) {
+// ───────── render rows ─────────
+
+function renderRow(v, isOurs, maxStake) {
   const tr = document.createElement('tr');
   tr.className = isOurs ? 'row-ours' : 'row-other';
 
-  const pubkey = isOurs ? record.validator : shortKey(record.validator);
+  const identity = isOurs ? v.identity : shortKey(v.identity);
   const tagHtml = isOurs
-    ? '<span class="tag tag-ours">OOZE\u2019S</span>'
+    ? '<span class="tag tag-ours">OOZE</span>'
     : '<span class="tag">VALIDATOR</span>';
+
+  const stakePct = maxStake > 0 ? Math.round((v.stake / maxStake) * 100) : 0;
+  const statusColor = v.status === 'active' ? 'var(--phos)' : 'var(--err)';
 
   tr.innerHTML = `
     <td class="col-validator">
       <div class="cell-validator">
         ${tagHtml}
-        <code class="cell-pubkey">${escapeHtml(pubkey)}</code>
+        <code class="cell-pubkey">${escapeHtml(identity)}</code>
       </div>
     </td>
-    <td class="col-uptime">
-      <div class="cell-num cell-num-strong">${(record.uptimePct ?? 0).toFixed(2)}%</div>
-      <div class="cell-sub">${(record.uptimeBps ?? 0)} bps</div>
+    <td class="col-vote">
+      <div class="cell-num">${escapeHtml(shortKey(v.vote_account))}</div>
     </td>
     <td class="col-stake">
-      <div class="cell-num cell-num-strong">${fmtSol(record.delegatedStakeSol)} ◎</div>
-      <div class="cell-sub">${fmtLamports(record.delegatedStakeLamports)}</div>
+      <div class="cell-num cell-num-strong">${fmtSol(v.stake)} ◎</div>
+      <div class="cell-sub" style="text-align:right">
+        <span style="display:inline-block;width:${stakePct}px;max-width:60px;height:2px;background:currentColor;vertical-align:middle;opacity:0.4"></span>
+      </div>
     </td>
     <td class="col-votes">
-      <div class="cell-num cell-num-strong">${fmtNum(record.votesCast)}</div>
-      <div class="cell-sub">cast</div>
+      <div class="cell-num cell-num-strong">${fmtNum(v.last_vote)}</div>
+      <div class="cell-sub">last vote</div>
     </td>
-    <td class="col-subsidy">
-      <div class="cell-num cell-num-strong">${fmtSol(record.lifetimeSubsidySol)} ◎</div>
-      <div class="cell-sub">${fmtLamports(record.lifetimeSubsidyLamports)}</div>
+    <td class="col-uptime">
+      <div class="cell-num cell-num-strong">${fmtNum(v.credits)}</div>
+      <div class="cell-sub">credits</div>
     </td>
     <td class="col-epoch">
-      <div class="cell-num">${record.lastDistributionEpoch ?? '—'}</div>
-      <div class="cell-sub">last paid</div>
-    </td>
-    <td class="col-nonce">
-      <div class="cell-num">${record.lastMetricsNonce ?? '—'}</div>
-      <div class="cell-sub">slot ${typeof record.lastMetricsSlot === 'number'
-        ? record.lastMetricsSlot.toLocaleString()
-        : '—'}</div>
+      <div class="cell-num" style="color:${statusColor}">${v.status ? v.status.toUpperCase() : '—'}</div>
     </td>
   `;
 
   return tr;
 }
 
-function renderAll(payload) {
-  const ourPubkey = payload.ourValidator;
-  const records = payload.validators || [];
+// ───────── render all ─────────
 
+function renderAll(netPayload, valPayload) {
   // status strip
-  $('#strip-count').textContent = fmtNum(payload.registeredCount);
-  $('#strip-slot').textContent = fmtNum(payload.slot);
-  $('#strip-epoch').textContent = fmtNum(payload.epoch);
-
-  const totalLamports = records.reduce((s, r) => s + (r.lifetimeSubsidyLamports || 0), 0);
-  $('#strip-total').textContent = fmtSol(totalLamports / 1e9, { compact: true }) + ' ◎';
+  $('#strip-count').textContent = fmtNum(valPayload.active_count);
+  $('#strip-slot').textContent = fmtNum(netPayload.slot);
+  $('#strip-epoch').textContent = fmtNum(netPayload.epoch);
+  $('#strip-total').textContent = fmtSol(valPayload.total_stake) + ' ◎';
 
   // sync indicator
   const light = $('#sync-light');
@@ -111,29 +93,51 @@ function renderAll(payload) {
   label.classList.remove('err');
   label.textContent = 'SYNC';
 
-  // network name from API
+  // network name
   const netEl = $('#net-foot');
-  if (netEl) netEl.textContent = payload.network || 'staccana';
+  if (netEl) netEl.textContent = (netPayload.network || 'alpenglow').toUpperCase();
+  const tpsEl = $('#meta-tps');
+  if (tpsEl && netPayload.slot_index != null && netPayload.slots_in_epoch) {
+    const pct = ((netPayload.slot_index / netPayload.slots_in_epoch) * 100).toFixed(1);
+    tpsEl.textContent = pct + '%';
+  }
 
-  const ours = records.find((r) => r.validator === ourPubkey);
-  const others = records.filter((r) => r.validator !== ourPubkey);
+  const validators = valPayload.validators || [];
+  const maxStake = Math.max(...validators.map(v => v.stake || 0));
+
+  const ours = validators.find(v => v.is_mine);
+  const others = validators.filter(v => !v.is_mine);
 
   const tbody = $('#rows');
   tbody.innerHTML = '';
 
-  if (records.length === 0) {
+  if (validators.length === 0) {
     const tr = document.createElement('tr');
     tr.className = 'empty-row';
-    tr.innerHTML = '<td colspan="7">// no validators in registry</td>';
+    tr.innerHTML = '<td colspan="6">// no validators found</td>';
     tbody.appendChild(tr);
     return;
   }
 
-  if (ours) {
-    tbody.appendChild(renderRow(ours, true));
-  }
-  for (const record of others) {
-    tbody.appendChild(renderRow(record, false));
+  if (ours) tbody.appendChild(renderRow(ours, true, maxStake));
+
+  const VISIBLE = 20;
+  others.slice(0, VISIBLE).forEach(v => tbody.appendChild(renderRow(v, false, maxStake)));
+
+  const existing = document.getElementById('expand-row');
+  if (existing) existing.remove();
+
+  if (others.length > VISIBLE) {
+    const tr = document.createElement('tr');
+    tr.id = 'expand-row';
+    tr.className = 'empty-row';
+    tr.style.cursor = 'pointer';
+    tr.innerHTML = `<td colspan="6" style="text-align:center;letter-spacing:2px;color:var(--phos-soft)">// ${others.length - VISIBLE} more validators — click to expand</td>`;
+    tr.onclick = () => {
+      others.slice(VISIBLE).forEach(v => tbody.insertBefore(renderRow(v, false, maxStake), tr));
+      tr.remove();
+    };
+    tbody.appendChild(tr);
   }
 }
 
@@ -143,22 +147,24 @@ let fails = 0;
 
 async function tick() {
   try {
-    const res = await fetch('/api/validators', { cache: 'no-store' });
-    if (!res.ok) throw new Error('http ' + res.status);
-    const payload = await res.json();
-    renderAll(payload);
+    const [netRes, valRes] = await Promise.all([
+      fetch('/api/network', { cache: 'no-store' }),
+      fetch('/api/validators', { cache: 'no-store' })
+    ]);
+    if (!netRes.ok || !valRes.ok) throw new Error('http error');
+    const [netPayload, valPayload] = await Promise.all([netRes.json(), valRes.json()]);
+    if (netPayload.error || valPayload.error) throw new Error(netPayload.error || valPayload.error);
+    renderAll(netPayload, valPayload);
     fails = 0;
   } catch (e) {
     fails++;
     if (fails > 2) {
-      const light = $('#sync-light');
-      const label = $('#sync-label');
-      light.classList.add('err');
-      label.classList.add('err');
-      label.textContent = 'NO SIGNAL';
+      $('#sync-light').classList.add('err');
+      $('#sync-label').classList.add('err');
+      $('#sync-label').textContent = 'NO SIGNAL';
     }
   }
 }
 
 tick();
-setInterval(tick, 15000);
+setInterval(tick, 10000);
