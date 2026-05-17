@@ -2,6 +2,11 @@
 
 const $ = (sel) => document.querySelector(sel);
 
+// ───────── expansion state (persists across polls) ─────────
+let isExpanded = false;
+let lastNet = null;
+let lastVal = null;
+
 // ───────── formatters ─────────
 
 function fmtNum(n) {
@@ -122,21 +127,27 @@ function renderAll(netPayload, valPayload) {
   if (ours) tbody.appendChild(renderRow(ours, true, maxStake));
 
   const VISIBLE = 20;
-  others.slice(0, VISIBLE).forEach(v => tbody.appendChild(renderRow(v, false, maxStake)));
-
-  const existing = document.getElementById('expand-row');
-  if (existing) existing.remove();
+  const toShow = isExpanded ? others : others.slice(0, VISIBLE);
+  toShow.forEach(v => tbody.appendChild(renderRow(v, false, maxStake)));
 
   if (others.length > VISIBLE) {
     const tr = document.createElement('tr');
     tr.id = 'expand-row';
     tr.className = 'empty-row';
     tr.style.cursor = 'pointer';
-    tr.innerHTML = `<td colspan="6" style="text-align:center;letter-spacing:2px;color:var(--phos-soft)">// ${others.length - VISIBLE} more validators — click to expand</td>`;
-    tr.onclick = () => {
-      others.slice(VISIBLE).forEach(v => tbody.insertBefore(renderRow(v, false, maxStake), tr));
-      tr.remove();
-    };
+    if (isExpanded) {
+      tr.innerHTML = `<td colspan="6" style="text-align:center;letter-spacing:2px;color:var(--phos-soft)">// collapse</td>`;
+      tr.onclick = () => {
+        isExpanded = false;
+        renderAll(lastNet, lastVal);
+      };
+    } else {
+      tr.innerHTML = `<td colspan="6" style="text-align:center;letter-spacing:2px;color:var(--phos-soft)">// ${others.length - VISIBLE} more validators — click to expand</td>`;
+      tr.onclick = () => {
+        isExpanded = true;
+        renderAll(lastNet, lastVal);
+      };
+    }
     tbody.appendChild(tr);
   }
 }
@@ -154,6 +165,8 @@ async function tick() {
     if (!netRes.ok || !valRes.ok) throw new Error('http error');
     const [netPayload, valPayload] = await Promise.all([netRes.json(), valRes.json()]);
     if (netPayload.error || valPayload.error) throw new Error(netPayload.error || valPayload.error);
+    lastNet = netPayload;
+    lastVal = valPayload;
     renderAll(netPayload, valPayload);
     fails = 0;
   } catch (e) {
