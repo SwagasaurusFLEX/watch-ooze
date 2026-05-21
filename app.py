@@ -14,7 +14,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-ALPENGLOW_RPC_URL = os.getenv("ALPENGLOW_RPC_URL", "http://77.42.74.189:8899")
+ALPENGLOW_RPC_URL = os.getenv("ALPENGLOW_RPC_URL", "http://rpc.ooze.run:8899")
 NETWORK_NAME = os.getenv("NETWORK_NAME", "alpenglow")
 MY_IDENTITY = os.getenv("MY_IDENTITY", "84zEgKV9w9B2C5h3Ahx61iZTRzU3wVrxJeBYmM9i1ggz")
 
