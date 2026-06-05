@@ -106,6 +106,8 @@ function renderAll(netPayload, valPayload) {
     const pct = ((netPayload.slot_index / netPayload.slots_in_epoch) * 100).toFixed(1);
     tpsEl.textContent = pct + '%';
   }
+  const realTpsEl = $('#meta-tps-val');
+  if (realTpsEl) realTpsEl.textContent = (netPayload.tps != null ? netPayload.tps : '—');
 
   const validators = valPayload.validators || [];
   const maxStake = Math.max(...validators.map(v => v.stake || 0));
@@ -165,8 +167,8 @@ async function tick() {
     if (!netRes.ok || !valRes.ok) throw new Error('http error');
     const [netPayload, valPayload] = await Promise.all([netRes.json(), valRes.json()]);
     if (netPayload.error || valPayload.error) throw new Error(netPayload.error || valPayload.error);
-    lastNet = netPayload;
-    lastVal = valPayload;
+    lastNet = netPayload;  window.lastNet = netPayload;
+    lastVal = valPayload;  window.lastVal = valPayload;
     renderAll(netPayload, valPayload);
     fails = 0;
   } catch (e) {
