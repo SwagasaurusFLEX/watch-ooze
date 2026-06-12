@@ -15,7 +15,6 @@ app.add_middleware(
 )
 
 ALPENGLOW_RPC_URL = os.getenv("ALPENGLOW_RPC_URL", "http://rpc.ooze.run:8899")
-PERF_RPC_URL = os.getenv("PERF_RPC_URL", "http://64.130.37.11:8899")
 NETWORK_NAME = os.getenv("NETWORK_NAME", "alpenglow")
 MY_IDENTITY = os.getenv("MY_IDENTITY", "84zEgKV9w9B2C5h3Ahx61iZTRzU3wVrxJeBYmM9i1ggz")
 
@@ -34,7 +33,7 @@ async def get_network():
     try:
         slot = await rpc("getSlot")
         epoch_info = await rpc("getEpochInfo")
-        perf = await rpc("getRecentPerformanceSamples", [1], url=PERF_RPC_URL)
+        perf = await rpc("getRecentPerformanceSamples", [1])
         slot_speed = 0
         tps = 0
         if perf and len(perf) > 0:
